@@ -1,0 +1,45 @@
+flowchart LR
+  %% ========== SWIMLANES ==========
+  subgraph U[Usuario - WhatsApp]
+    U1["Envía póliza (PDF / foto)"]
+  end
+
+  subgraph W[WhatsApp / Meta]
+    W1["Webhook entrega media + metadata (phone, msgId)"]
+  end
+
+  subgraph B[Backend Orquestador]
+    B1["Crear correlationId + sessionId"]
+    B2["Guardar archivo (storage) + registrar evento"]
+    B3["Invocar IA extracción"]
+    B4["Normalizar → CanonicalQuoteInput"]
+    B5{"¿Campos críticos completos?"}
+    B6["Aplicar parametrización defaults\n(sin preguntar)"]
+    B7["Auth Digna (token)"]
+    B8["WS ConsultaTarifas → idTarifa"]
+    B9["(Opcional) WS ConsultaSumaAsegurada\nsi falta/invalid sumInsured"]
+    B10["REST CotizacionAutos/Generar"]
+    B11["Armar respuesta WhatsApp\n(resumen + precio + cobertura)"]
+    B12["Guardar resultado (quoteId, payload, logs masked)"]
+  end
+
+  subgraph AI[Módulo IA]
+    A1["OCR + extracción campos"]
+    A2["Salida: ExtractedPolicyData\n(value + confidence + evidence)"]
+  end
+
+  subgraph D[Digna (SOAP + REST)]
+    D1["SOAP ConsultaTarifas"]
+    D2["SOAP ConsultaSumaAseguradaVehiculosActivos"]
+    D3["REST CotizacionAutos/Generar"]
+  end
+
+  %% ========== FLOW ==========
+  U1 --> W1 --> B1 --> B2 --> B3 --> A1 --> A2 --> B4 --> B5
+  B5 -- "Sí" --> B7
+  B5 -- "No" --> B6 --> B7
+  B7 --> B8 --> D1 --> B8
+  B8 --> B9
+  B9 --> D2 --> B9
+  B9 --> B10 --> D3 --> B10
+  B10 --> B12 --> B11
